@@ -1,0 +1,84 @@
+---
+title: "Data Science 1 Homework 2"
+author: "Samina Rashiq"
+date: "2024-10-06"
+output: github_document
+---
+  
+```{r setup, echo=FALSE, message=FALSE}
+library(tidyverse)
+library(readxl)
+library(tidyr)
+library(knitr)
+setwd("/Users/saminarashiq/R/Data_Science_1")
+```
+
+# Problem 1
+```{r nyctransit, results='hide'}
+nyc_transit = read_csv("./NYC_Transit_Subway_Entrance_And_Exit_Data.csv", show_col_types = FALSE) |>
+  janitor::clean_names() |>
+  select(
+    line, station_name, station_latitude, 
+    station_longitude, starts_with("route"), 
+    entry, vending, entrance_type, ada
+  ) |>
+  mutate(
+    entry_logical = ifelse(entry == "YES", TRUE, FALSE)
+  )
+```
+This data set describes key details about the NYC subway system including station names, routes served, ADA compliance and more. I cleaned the data by using the janitor function to convert all names to lowercase and replacing all spaces/special characters with underscores. I then selected relevant variables and turned the entry variable from a character type to a logical type, leaving a cleaner dataset with 1,868 rows and 32 columns. 
+
+```{r distinct_stations, echo=FALSE}
+distinct_stations = nyc_transit |>
+  distinct(station_name, line)
+
+num_distinct_stations = nrow(distinct_stations)
+cat("The number of distinct stations is:", num_distinct_stations)
+
+num_ada_compliant = nyc_transit |>
+  filter(ada == TRUE) |>
+  distinct(station_name, line) |>
+  nrow()
+cat("The number of ADA-compliant stations is:", num_ada_compliant)
+
+without_vending = nyc_transit |>
+  filter(vending == "NO", entry_logical == TRUE) |>
+  nrow()
+
+total_without_vending = nyc_transit |>
+  filter(vending == "NO") |>
+  nrow()
+
+proportion_without_vending_entry = without_vending / total_without_vending
+cat("The proportion of station entrances/exits with no vending that allow entrance is:", proportion_without_vending_entry)
+
+```
+
+```{r a_stations, echo=FALSE}
+a_stations = nyc_transit |>
+  mutate(across(route1:route11, as.character)) |>
+  pivot_longer(
+    route1:route11,
+    names_to = "route_num",
+    values_to = "route"
+  ) |> 
+  filter(route == "A") |>
+  select(station_name, line) |>
+  distinct()
+
+num_a_stations = nrow(a_stations)
+cat("The number of distinct stations that serve the A train is:", num_a_stations)
+
+ada_compliant_a_stations = a_stations |>
+  filter(station_name %in% (nyc_transit |> filter(ada == TRUE) |> pull(station_name)))
+
+num_ada_a_stations = nrow(ada_compliant_a_stations)
+cat("The number of ADA-compliant stations that serve the A train is:", num_ada_a_stations)
+
+```
+
+
+
+
+
+
