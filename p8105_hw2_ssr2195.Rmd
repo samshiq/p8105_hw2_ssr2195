@@ -120,5 +120,115 @@ The data set contains data collected by three different trash wheels in Baltimor
 
 The total weight of trash collected by Professor Trash Wheel is `r sum(trash_df$weight_tons[trash_df$trash_wheel == "Professor Trash Wheel"], na.rm = TRUE)` tons. Additionally, the total number of cigarette butts collected by Gwynnda Trash Wheel in June 2022 is `r sum(trash_df$cigarette_butts[trash_df$trash_wheel == "Gwynnda Trash Wheel" & trash_df$month == "June" & trash_df$year == 2022], na.rm = TRUE)`.
 
+# Problem 3
+```{r bakers}
+bakers_df = 
+  read.csv("bakers.csv") |>
+  janitor::clean_names() |>
+  mutate(
+    baker = word(baker_name, 1),
+    baker = if_else(baker == "Jo" | baker == '"Jo"', "Jo", baker)
+    ) |>
+  select(baker, series, baker_age, baker_occupation, hometown) |>
+  arrange(series)
+```
+
+```{r bakes}
+bakes_df = 
+  read.csv("bakes.csv") |>
+  janitor::clean_names() |>
+  select(baker, series, episode, signature_bake, show_stopper) |>
+  mutate(baker = if_else(baker == "Jo" | baker == '"Jo"', "Jo", baker))
+```
+
+```{r results}
+results_df = read.csv("results.csv", skip = 2) |>
+  janitor::clean_names() |>
+  select(series, episode, technical, baker, result)
+```
+```{r merging_bakers_bakes}
+merged_bakers_bakes = bakes_df |>
+  left_join(bakers_df, by = c("baker", "series"))
+```
+```{r merging_all}
+final_bakeoff_data_df = merged_bakers_bakes |>
+  left_join(results_df, by = c("baker", "series", "episode"))
+```
+```{r export_final_bakeoff_data_df}
+write_csv(final_bakeoff_data_df, "final_bakeoff_data.csv")
+```
+I started by replacing '"Jo"' in the bakers.csv and bakes.csv datasets with 'Jo' to reduce the chance of errors. Since only first names were available in the bakes.csv and results.csv datasets, I extracted first names from bakers.csv. In results.csv, I skipped the first two rows as they did not contain headers or data.
+
+I merged the data in two steps because it was easier for me to understand. First, I merged bakers.csv and bakes.csv on baker and series to connect each baker to their bakes. Then, I merged the output with results.csv using baker, series, and episode because  performance results are tied to specific episodes (which are not present in the bakers.csv dataset).
 
 
+```{r table}
+# Step 1: Create a summary table with the counts of Star Baker, Winner status, and Series
+baker_summary_df = final_bakeoff_data_df |>
+  filter(series >= 5 & series <= 10) |>  # Keep only series 5 to 10
+  group_by(series, baker) |>              # Group by series and baker
+  summarise(
+    star_baker_count = sum(result == "STAR BAKER"),   # Count of times they were Star Baker
+    winner = if_else(any(result == "WINNER"), "Yes", "No"),  # Check if they were a winner
+    .groups = "drop"  # Drop grouping structure
+  ) |>
+  filter(star_baker_count > 0 | winner == "Yes") |>  # Keep entries where Star Baker count > 0 or baker is a winner
+  arrange(series, desc(star_baker_count))  # Arrange in chronological order by series, then by descending Star Baker count
+```
+
+### Star Baker Counts and Winners (Seasons 5-10) with Counts > 0 unless Winner ###
+```{r table_display}
+# Step 2: Display the summary table
+library(knitr)
+baker_summary_df |> 
+  kable(col.names = c("Series", "Baker", "Star Baker Count", "Winner")
+  )
+```
+
+
+```{r viewers, echo=FALSE, message=FALSE, results='hide'}
+# Load necessary libraries
+library(tidyr)
+library(dplyr)
+library(janitor)
+
+# Step 1: Load the viewership data and clean column names
+viewers_long_df = read.csv("viewers.csv") |>
+  janitor::clean_names() |>  # Clean column names
+
+  # Step 2: Reshape data from wide to long format
+  pivot_longer(
+    cols = starts_with("series"),  # All columns starting with "series"
+    names_to = "series",           # Create a new column called 'series'
+    names_prefix = "series_",      # Remove the "series_" prefix
+    values_to = "viewers"          # The values in the cells go to 'viewers'
+  ) |>
+  mutate(
+    series = as.numeric(series)    # Convert 'series' to a numeric value
+  ) |>
+  drop_na(viewers) |>             # Remove rows with NA values in 'viewers' column
+  arrange(series)                 # Arrange data by series in ascending order
+
+# Step 3: Calculate the average viewership for Season 1 and Season 5
+average_viewership_season_1 = viewers_long_df |>
+  filter(series == 1) |>
+  summarise(average_viewers = mean(viewers, na.rm = TRUE)) |>
+  pull(average_viewers)
+
+average_viewership_season_5 = viewers_long_df |>
+  filter(series == 5) |>
+  summarise(average_viewers = mean(viewers, na.rm = TRUE)) |>
+  pull(average_viewers)
+```
+
+The average viewership in Season 1 was `r round(average_viewership_season_1, 2)` million viewers.
+
+The average viewership in Season 5 was `r round(average_viewership_season_5, 2)` million viewers.
+
+### First 10 Rows of Tidied Viwership Dataset ###
+```{r finaltable}
+library(knitr)
+viewers_long_df |> 
+  head(10) |>                    # Select the first 10 rows
+  kable(col.names = c("Episode", "Series", "Viewers (millions)"))
+```
